@@ -70,6 +70,7 @@ public class ComplexField implements Field {
         this.type = type;
     }
 
+    @Override
     public boolean isRequired() {
         return required;
     }
@@ -78,6 +79,7 @@ public class ComplexField implements Field {
         this.required = required;
     }
 
+    @Override
     public boolean isNullable() {
         return nullable;
     }
