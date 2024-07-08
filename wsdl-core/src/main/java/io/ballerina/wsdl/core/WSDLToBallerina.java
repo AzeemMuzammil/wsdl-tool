@@ -21,6 +21,7 @@ package io.ballerina.wsdl.core;
 import io.ballerina.wsdl.core.diagnostic.DiagnosticMessage;
 import io.ballerina.wsdl.core.diagnostic.DiagnosticUtils;
 import io.ballerina.wsdl.core.wsdlmodel.SOAPVersion;
+import io.ballerina.wsdl.core.wsdlmodel.WSDLHeader;
 import io.ballerina.wsdl.core.wsdlmodel.WSDLMessage;
 import io.ballerina.wsdl.core.wsdlmodel.WSDLOperation;
 import io.ballerina.wsdl.core.wsdlmodel.WSDLPart;
@@ -65,6 +66,7 @@ import javax.wsdl.xml.WSDLReader;
 import javax.xml.namespace.QName;
 
 public class WSDLToBallerina {
+    private Definition wsdlDefinition;
     private Port soapPort;
     private SOAPVersion soapVersion;
 
@@ -77,7 +79,7 @@ public class WSDLToBallerina {
             reader.setFeature("javax.wsdl.importDocuments", true);
 
             InputStream wsdlStream = new ByteArrayInputStream(wsdlText.getBytes(Charset.defaultCharset()));
-            Definition wsdlDefinition = reader.readWSDL(null, new InputSource(wsdlStream));
+            wsdlDefinition = reader.readWSDL(null, new InputSource(wsdlStream));
 
             WSDLService wsdlService = getSOAPService(wsdlDefinition);
             if (wsdlService == null) {
@@ -193,10 +195,29 @@ public class WSDLToBallerina {
             message = bindingOperation.getOperation().getOutput().getMessage();
         }
         for (Object element : extensions) {
+            Message headerMessage = null;
+            Part headerPart = null;
             if (soapVersion == SOAPVersion.SOAP11 && element instanceof SOAPHeader) {
-                // TODO: Implement later.
+                SOAPHeader soapHeader = (SOAPHeader) element;
+                headerMessage = wsdlDefinition.getMessage(soapHeader.getMessage());
+                if (headerMessage != null) {
+                    headerPart = headerMessage.getPart(soapHeader.getPart());
+                }
             } else if (soapVersion == SOAPVersion.SOAP12 && element instanceof SOAP12Header) {
-                // TODO: Implement later.
+                SOAP12Header soap12Header = (SOAP12Header) element;
+                headerMessage = wsdlDefinition.getMessage(soap12Header.getMessage());
+                if (headerMessage != null) {
+                    headerPart = headerMessage.getPart(soap12Header.getPart());
+                }
+            }
+            if (headerMessage != null && headerPart != null) {
+                String localPart = headerPart.getElementName().getLocalPart();
+                String namespaceURI = headerPart.getElementName().getNamespaceURI();
+                WSDLPart wsdlPart = new WSDLPart(localPart, namespaceURI);
+
+                WSDLHeader wsdlHeader = new WSDLHeader();
+                wsdlHeader.setPart(wsdlPart);
+                wsdlPayload.addHeader(wsdlHeader);
             }
         }
         if (message != null) {

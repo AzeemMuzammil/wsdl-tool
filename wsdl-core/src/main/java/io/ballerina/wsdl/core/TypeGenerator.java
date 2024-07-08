@@ -19,8 +19,10 @@
 package io.ballerina.wsdl.core;
 
 import io.ballerina.compiler.syntax.tree.AbstractNodeFactory;
+import io.ballerina.compiler.syntax.tree.AnnotationNode;
 import io.ballerina.compiler.syntax.tree.IdentifierToken;
 import io.ballerina.compiler.syntax.tree.ImportDeclarationNode;
+import io.ballerina.compiler.syntax.tree.MetadataNode;
 import io.ballerina.compiler.syntax.tree.ModuleMemberDeclarationNode;
 import io.ballerina.compiler.syntax.tree.ModulePartNode;
 import io.ballerina.compiler.syntax.tree.NodeFactory;
@@ -56,13 +58,16 @@ public class TypeGenerator {
     String generate(List<String> operations) throws FormatterException {
         RecordGenerator recordGenerator = new RecordGenerator();
         Map<String, NonTerminalNode> allTypeToTypeDescNodes = new LinkedHashMap<>();
+        Map<String, AnnotationNode> allTypeToAnnotationNodes = new LinkedHashMap<>();
         List<WSDLOperation> wsdlOperations = wsdlService.getWSDLOperations();
         for (WSDLOperation wsdlOperation : wsdlOperations) {
             if (operations.isEmpty() || operations.contains(wsdlOperation.getOperationName())) {
                 OperationProcessor operationProcessor = new OperationProcessor(wsdlOperation);
                 List<Field> fields = operationProcessor.generateFields();
                 Map<String, NonTerminalNode> typeToTypeDescNodes = recordGenerator.generateBallerinaTypes(fields);
+                Map<String, AnnotationNode> typeToAnnotationNodes = recordGenerator.getTypeToAnnotationNodes();
                 allTypeToTypeDescNodes.putAll(typeToTypeDescNodes);
+                allTypeToAnnotationNodes.putAll(typeToAnnotationNodes);
             }
         }
 
@@ -78,11 +83,17 @@ public class TypeGenerator {
                 new ArrayList<>(allTypeToTypeDescNodes.entrySet());
         List<TypeDefinitionNode> typeDefNodes = typeToTypeDescEntries.stream()
                 .map(entry -> {
+                    List<AnnotationNode> annotations = new ArrayList<>();
                     String recordName = entry.getKey();
                     Token typeKeyWord = AbstractNodeFactory.createToken(SyntaxKind.TYPE_KEYWORD);
+                    if (allTypeToAnnotationNodes.containsKey(recordName)) {
+                        annotations.add(allTypeToAnnotationNodes.get(recordName));
+                    }
+                    NodeList<AnnotationNode> annotationNodes = NodeFactory.createNodeList(annotations);
+                    MetadataNode metadata = NodeFactory.createMetadataNode(null, annotationNodes);
                     IdentifierToken typeName = AbstractNodeFactory.createIdentifierToken(recordName);
                     Token semicolon = AbstractNodeFactory.createToken(SyntaxKind.SEMICOLON_TOKEN);
-                    return NodeFactory.createTypeDefinitionNode(null, null, typeKeyWord, typeName,
+                    return NodeFactory.createTypeDefinitionNode(metadata, null, typeKeyWord, typeName,
                             entry.getValue(), semicolon);
                 }).toList();
 

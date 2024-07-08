@@ -29,7 +29,6 @@ import io.ballerina.compiler.syntax.tree.MappingConstructorExpressionNode;
 import io.ballerina.compiler.syntax.tree.MappingFieldNode;
 import io.ballerina.compiler.syntax.tree.MetadataNode;
 import io.ballerina.compiler.syntax.tree.MinutiaeList;
-import io.ballerina.compiler.syntax.tree.NameReferenceNode;
 import io.ballerina.compiler.syntax.tree.Node;
 import io.ballerina.compiler.syntax.tree.NodeFactory;
 import io.ballerina.compiler.syntax.tree.NodeList;
@@ -63,18 +62,24 @@ import static io.ballerina.wsdl.core.recordgenerator.util.GeneratorUtils.updateF
 public class RecordGenerator {
 
     private boolean usesXmlData = false;
+    private final Map<String, AnnotationNode> typeToAnnotationNodes = new LinkedHashMap<>();
 
     public Map<String, NonTerminalNode> generateBallerinaTypes(List<Field> fields) {
         final Map<String, NonTerminalNode> typeToTypeDescNodes = new LinkedHashMap<>();
+
         for (Field field : fields) {
             if (field instanceof BasicField) {
                 generateTypeDescriptor((BasicField) field, typeToTypeDescNodes);
             }
             if (field instanceof ComplexField) {
-                generateRecordTypeDescriptors((ComplexField) field, typeToTypeDescNodes);
+                generateRecordTypeDescriptors((ComplexField) field, typeToTypeDescNodes, typeToAnnotationNodes);
             }
         }
         return typeToTypeDescNodes;
+    }
+
+    public Map<String, AnnotationNode> getTypeToAnnotationNodes() {
+        return typeToAnnotationNodes;
     }
 
     public boolean hasXmlDataUsage() {
@@ -95,14 +100,14 @@ public class RecordGenerator {
             typeToTypeDescNodes.put(type, enumTypeDescNode);
             return;
         }
-        Token typeName = AbstractNodeFactory.createToken(SyntaxKind.ANYDATA_KEYWORD);
-        NameReferenceNode anyDataNode = NodeFactory.createBuiltinSimpleNameReferenceNode(typeName.kind(), typeName);
-        TypeDescriptorNode anyDataTypeDescNode = NodeFactory.createTypeReferenceTypeDescNode(anyDataNode);
-        typeToTypeDescNodes.put(type, anyDataTypeDescNode);
+        String fieldRawType = getBallerinaType(basicField.getType());
+        TypeDescriptorNode fieldType = getBallerinaTypeToken(fieldRawType);
+        typeToTypeDescNodes.put(type, fieldType);
     }
 
     private void generateRecordTypeDescriptors(ComplexField complexField,
-                                                 Map<String, NonTerminalNode> typeToTypeDescNodes) {
+                                               Map<String, NonTerminalNode> typeToTypeDescNodes,
+                                               Map<String, AnnotationNode> typeToAnnotNodes) {
         if (complexField.isCyclicDep()) {
             return;
         }
@@ -111,7 +116,7 @@ public class RecordGenerator {
 
         String type = complexField.getType();
 
-        List<Node> recordFields = getRecordFields(complexField, typeToTypeDescNodes);
+        List<Node> recordFields = getRecordFields(complexField, typeToTypeDescNodes, typeToAnnotNodes);
         NodeList<Node> fieldNodes = AbstractNodeFactory.createNodeList(recordFields);
         Token bodyEndDelimiter = AbstractNodeFactory.createToken(SyntaxKind.CLOSE_BRACE_TOKEN);
         RecordTypeDescriptorNode recordTypeDescriptorNode =
@@ -119,9 +124,13 @@ public class RecordGenerator {
                         fieldNodes, null, bodyEndDelimiter);
 
         typeToTypeDescNodes.put(type, recordTypeDescriptorNode);
+        if (complexField.getAttributeName() != null) {
+            typeToAnnotNodes.put(type, getXMLNameNode(complexField.getAttributeName()));
+        }
     }
 
-    private List<Node> getRecordFields(ComplexField complexField, Map<String, NonTerminalNode> typeToTypeDescNodes) {
+    private List<Node> getRecordFields(ComplexField complexField, Map<String, NonTerminalNode> typeToTypeDescNodes,
+                                       Map<String, AnnotationNode> typeToAnnotNodes) {
         List<Field> fields = complexField.getFields();
         List<Node> recordFields = new ArrayList<>();
 
@@ -141,7 +150,7 @@ public class RecordGenerator {
                 recordFields.add(recordFieldNode);
             } else if (field instanceof ComplexField complexFieldInstance) {
                 RecordFieldNode recordFieldNode =
-                        getRecordFieldForComplexField(complexFieldInstance, typeToTypeDescNodes);
+                        getRecordFieldForComplexField(complexFieldInstance, typeToTypeDescNodes, typeToAnnotNodes);
                 recordFields.add(recordFieldNode);
             }
         }
@@ -188,7 +197,8 @@ public class RecordGenerator {
     }
 
     private RecordFieldNode getRecordFieldForComplexField(ComplexField field,
-                                                          Map<String, NonTerminalNode> typeToTypeDescNodes) {
+                                                          Map<String, NonTerminalNode> typeToTypeDescNodes,
+                                                          Map<String, AnnotationNode> typeToAnnotNodes) {
         Token questionMarkToken = AbstractNodeFactory.createToken(SyntaxKind.QUESTION_MARK_TOKEN);
         String fieldRawType = field.getType();
         Token fieldTypeToken = AbstractNodeFactory.createIdentifierToken(fieldRawType);
@@ -202,7 +212,7 @@ public class RecordGenerator {
                 NodeFactory.createOptionalTypeDescriptorNode(fieldType, questionMarkToken);
         IdentifierToken fieldName = AbstractNodeFactory.createIdentifierToken(escapeIdentifier(field.getName()));
         Token semicolonToken = AbstractNodeFactory.createToken(SyntaxKind.SEMICOLON_TOKEN);
-        generateRecordTypeDescriptors(field, typeToTypeDescNodes);
+        generateRecordTypeDescriptors(field, typeToTypeDescNodes, typeToAnnotNodes);
         return NodeFactory.createRecordFieldNode(null, null,
                 field.isNullable() ? optionalFieldType : fieldType, fieldName,
                 field.isRequired() ? null : questionMarkToken, semicolonToken);

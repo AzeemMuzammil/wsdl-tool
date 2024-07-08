@@ -21,7 +21,7 @@ package io.ballerina.wsdl.core.recordgenerator.ballerinair;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BasicField extends Field {
+public class BasicField implements Field {
     private String name;
     private String type;
     private boolean required;
@@ -41,6 +41,7 @@ public class BasicField extends Field {
         this.constraints = new ArrayList<>();
     }
 
+    @Override
     public String getName() {
         return name;
     }

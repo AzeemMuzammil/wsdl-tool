@@ -30,7 +30,7 @@ import java.util.List;
  *     - (simpleContent|complexContent|((group|all|choice|sequence)?,((attribute|attributeGroup)*,anyAttribute?)))
  * XSD
  */
-public class ComplexField extends Field {
+public class ComplexField implements Field {
     private String name;
     private String type;
     private boolean required;
@@ -40,6 +40,7 @@ public class ComplexField extends Field {
     private List<Field> fields;
     private String includedType;
     private boolean isCyclicDep;
+    private String attributeName;
 
     public ComplexField(String name, String type) {
         this.name = name;
@@ -52,6 +53,7 @@ public class ComplexField extends Field {
         this.isCyclicDep = false;
     }
 
+    @Override
     public String getName() {
         return name;
     }
@@ -130,5 +132,13 @@ public class ComplexField extends Field {
 
     public void setCyclicDep(boolean cyclicDep) {
         isCyclicDep = cyclicDep;
+    }
+
+    public String getAttributeName() {
+        return attributeName;
+    }
+
+    public void setAttributeName(String attributeName) {
+        this.attributeName = attributeName;
     }
 }

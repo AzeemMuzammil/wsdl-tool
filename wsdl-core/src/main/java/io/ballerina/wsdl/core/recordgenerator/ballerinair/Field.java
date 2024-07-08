@@ -18,6 +18,6 @@
 
 package io.ballerina.wsdl.core.recordgenerator.ballerinair;
 
-public abstract class Field {
-
+public interface Field {
+    public String getName();
 }
